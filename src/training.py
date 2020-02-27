@@ -31,8 +31,9 @@ IMG_CHN     = 1
 
 hdf5_dir = "/content/drive/My Drive/CellTracking" # sys.argv[1] #
 hdf5file = h5py.File(hdf5_dir + "/seg_samples.hdf5", "r")
-img_patches = np.expand_dims(np.array(hdf5file["/images"]).astype("uint8"), 3)
+img_patches = np.array(hdf5file["/images"]).astype("uint8")
 msk_patches = np.expand_dims(np.array(hdf5file["/masks"]).astype("uint8"), 3)
+img_patches = np.stack((img_patches,)*3, axis=3)
 msk_patches[msk_patches > 0] = 1
 hdf5file.close()
 
@@ -48,7 +49,7 @@ train_imgs, valid_imgs, train_masks, valid_masks = train_test_split(
 
 opt = Adam(lr=1E-3, beta_1=0.9, beta_2=0.999, epsilon=1e-08)
 
-mdl = unet((PATCH_SIZE,PATCH_SIZE,IMG_CHN), 16)
+mdl = unet_VGG16((PATCH_SIZE,PATCH_SIZE,IMG_CHN, 3))
 mdl.summary()
 mdl.compile(
     loss=weighted_jaccard_loss,

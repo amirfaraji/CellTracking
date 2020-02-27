@@ -289,7 +289,7 @@ def unet_VGG16(img_shape):
     o = BatchNormalization()(o)
     o = Dropout(0.2)(o)	
 
-    density_pred =  Conv2D(3, (1, 1), bias = False, activation='sigmoid', init='orthogonal',name='pred')(o)
+    density_pred =  Conv2D(1, (1, 1), bias = False, activation='sigmoid', init='orthogonal',name='pred')(o)
 	
     model = Model(img_input, density_pred)
 
