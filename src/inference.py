@@ -32,8 +32,7 @@ parser.add_argument('--crf_flag', type=bool, help='An optional boolean crf flag 
 
 args = parser.parse_args()
 
-ex = "../Data/BF-C2DL-MuSC/01"
-folder_name = ex.split('/')[-2:]
+folder_name = args.image_path.split('/')[-2:]
 weight_path = f'weights/{folder_name[0]}_{folder_name[1]}.hdf5'
 
 
@@ -41,7 +40,7 @@ weight_path = f'weights/{folder_name[0]}_{folder_name[1]}.hdf5'
 ###   Load Image of Dataset    ###
 ##################################
 # Load Image of Dataset
-imgs, masks, pad_vals = load_data(input_dir)
+imgs, masks, pad_vals = load_test_data(args.image_path)
 
 
 ##################################
