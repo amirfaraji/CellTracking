@@ -1,83 +1,85 @@
 # -*- coding: utf-8 -*-
 import sys
-import glob
-import h5py
-import random
-import skimage.io
 import numpy as np
 import tensorflow as tf
 import matplotlib.pyplot as plt
 
 from evaluation.metrics import *
 from models.networks import *
+from loaddata import *
+from datagen import DataGen
 
 from keras.optimizers import Adam
-from keras.models import Sequential
-from keras.callbacks import ModelCheckpoint, EarlyStopping
-
-from sklearn.feature_extraction import image
-from sklearn.model_selection import train_test_split
-
 
 RANDOM_SEED = 42
-TEST_SPLIT  = 0.15
-VALID_SPLIT = 0.2
 PATCH_SIZE  = 256
 BATCH_SIZE  = 16
-IMG_HEIGHT  = 1036 
-IMG_WIDTH   = 1070 
 IMG_CHN     = 1
 
 
-hdf5_dir = "/content/drive/My Drive/CellTracking" # sys.argv[1] #
-hdf5file = h5py.File(hdf5_dir + "/seg_samples.hdf5", "r")
-img_patches = np.array(hdf5file["/images"]).astype("uint8")
-msk_patches = np.expand_dims(np.array(hdf5file["/masks"]).astype("uint8"), 3)
-img_patches = np.stack((img_patches,)*3, axis=3)
-msk_patches[msk_patches > 0] = 1
-hdf5file.close()
-
-
-
-train_imgs, test_imgs, train_masks, test_masks = train_test_split(
-    img_patches, msk_patches, test_size=TEST_SPLIT, random_state=RANDOM_SEED
-)
-
-train_imgs, valid_imgs, train_masks, valid_masks = train_test_split(
-    train_imgs, train_masks, test_size=VALID_SPLIT, random_state=RANDOM_SEED
-)
+input_dir = ""
+train_imgs, train_masks, valid_imgs, valid_masks, test_imgs, test_masks = \
+    load_data(input_dir)
 
 opt = Adam(lr=1E-3, beta_1=0.9, beta_2=0.999, epsilon=1e-08)
 
-mdl = unet_VGG16((PATCH_SIZE,PATCH_SIZE,IMG_CHN, 3))
-mdl.summary()
-mdl.compile(
-    loss=weighted_jaccard_loss,
-    optimizer=opt, 
-    metrics=[jaccard_index, precision_m, f1_m, dice_coeff]
-  )
+init_weights = np.ones((train_imgs.shape[0]))
+train_gene = DataGene(train_imgs, train_masks, init_weights, BATCH_SIZE, True)
 
-checkpoint = ModelCheckpoint("weights2.hdf5", monitor='val_loss', 
-                             verbose=1, save_best_only=True, mode='min')
+weights = np.ones(train_imgs.shape[0])
+  
+def jacc_loss(y_true, y_pred):
+  y_true_f = y_true.flatten()
+  y_pred_f = y_pred.flatten()
+  numer = np.mean(np.minimum(y_true_f, y_pred_f)) + 1e-7
+  denom = np.mean(np.maximum(y_true_f, y_pred_f)) + 1e-7
+  return 1 - numer/denom
 
-earlystopping = EarlyStopping(monitor='val_loss', verbose = 1,
-                              min_delta = 1E-5, patience = 30, mode='min')
 
-callbacks_list = [checkpoint, earlystopping]
+lr_counter = 0
+lr_val = 1e-4
+lr_min = 1e-7
+es_counter = 0
+loss_values = []
+loss_values_val = []
+while es_counter < 30:
+    if lr_counter == 15 and lr_val > lr_min:
+        lr_val = np.max([lr_val*0.3, lr_min])
+        K.set_value(mdl.optimizer.lr, lr_val)
+        lr_counter = 0
+    
+    results = mdl.fit_generator(
+        train_gene,
+        epochs=1,
+        validation_data=(val_imgs, val_masks),
+        steps_per_epoch=len(train_imgs) // BATCH_SIZE,
+    )
+    
+    if not loss_values_val or \
+        results.history['val_loss'] < np.array(loss_values_val).min():
+        
+        lr_counter = 0
+        es_counter = 0
+        mdl.save_weights(
+            save_dir, 
+            overwrite=True
+        )
+    else:
+        lr_counter += 1
+        es_counter += 1
 
-aug = ImageDataGenerator(horizontal_flip=True, vertical_flip=True, 
-                         shear_range=0.05, rotation_range=20, 
-                         width_shift_range=0.1, height_shift_range=0.1)
+    loss_values.append(results.history['loss'])
+    loss_values_val.append(results.history['val_loss'])
 
-def data_gene(BATCH_SIZE):
-  img_datagen = aug.flow(train_imgs, batch_size=BATCH_SIZE, seed=444)
-  msk_datagen = aug.flow(train_masks, batch_size=BATCH_SIZE, seed=444)
+    train_gene = DataGen(train_imgs, train_masks, weights=init_weights, \
+                          batch_size=BATCH_SIZE, shuffle=False)
+    
+    train_pred = mdl.predict_generator(train_gene)
 
-  for (img,mask) in zip(img_datagen, msk_datagen):
-        yield (img,mask)
+    for p_ind,pred in enumerate(train_pred):
+      weights[p_ind] = jacc_loss(pred, train_masks[p_ind])
 
-results = mdl.fit_generator(data_gene(BATCH_SIZE),
-                  epochs=150, 
-                  validation_data=(valid_imgs, valid_masks),
-                  steps_per_epoch=len(train_imgs) // BATCH_SIZE,
-                  callbacks=callbacks_list)
+    train_gene = DataGen(train_imgs, train_masks, weights=weights, \
+                         batch_size=BATCH_SIZE, shuffle=True)
+
+
