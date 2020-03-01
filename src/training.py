@@ -17,14 +17,22 @@ BATCH_SIZE  = 16
 IMG_CHN     = 1
 
 
-input_dir = ""
-train_imgs, train_masks, valid_imgs, valid_masks, test_imgs, test_masks = \
-    load_data(input_dir)
+input_dir = "../Data/BF-C2DL-MuSC/01"
+save_dir = "../src/weights/"
+train_imgs, train_masks, val_imgs, val_masks, test_imgs, test_masks = \
+    load_train_data(input_dir.split('/')[-2], input_dir.split('/')[-1])
 
 opt = Adam(lr=1E-3, beta_1=0.9, beta_2=0.999, epsilon=1e-08)
 
+mdl = unet((PATCH_SIZE, PATCH_SIZE, IMG_CHN), 16)
+mdl.compile(
+    opt,
+    loss=weighted_jaccard_loss,
+    metrics=[jaccard_index, precision_m, f1_m, dice_coeff]
+)
+
 init_weights = np.ones((train_imgs.shape[0]))
-train_gene = DataGene(train_imgs, train_masks, init_weights, BATCH_SIZE, True)
+train_gene = DataGen(train_imgs, train_masks, init_weights, BATCH_SIZE, True)
 
 weights = np.ones(train_imgs.shape[0])
   
@@ -61,7 +69,7 @@ while es_counter < 30:
         lr_counter = 0
         es_counter = 0
         mdl.save_weights(
-            save_dir, 
+            save_dir + 'BF-C2DL-MuSC.hdf5', 
             overwrite=True
         )
     else:

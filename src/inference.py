@@ -32,15 +32,16 @@ parser.add_argument('--crf_flag', type=bool, help='An optional boolean crf flag 
 
 args = parser.parse_args()
 
+ex = "../Data/BF-C2DL-MuSC/01"
+folder_name = ex.split('/')[-2:]
+weight_path = f'weights/{folder_name[0]}_{folder_name[1]}.hdf5'
+
 
 ##################################
 ###   Load Image of Dataset    ###
 ##################################
 # Load Image of Dataset
-hdf5_dir = args.image_path 
-hdf5file = h5py.File(hdf5_dir + "/seg_samples.hdf5", "r")
-test_set = np.array(hdf5file["/images"]).astype("uint8")
-hdf5file.close()
+imgs, masks, pad_vals = load_data(input_dir)
 
 
 ##################################
