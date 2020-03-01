@@ -1,13 +1,9 @@
 from keras.applications.vgg16 import VGG16
 from keras.applications.xception import Xception
-from keras.layers import Activation, Add, BatchNormalization, Conv2D, Conv2DTranspose
-from keras.layers import Input, MaxPooling2D, SeparableConv2D, UpSampling2D
-from keras.layers import Concatenate, Flatten, Dense, Dropout, ZeroPadding2D
+from keras.layers import *
 from keras.models import Model
-from keras.preprocessing.image import ImageDataGenerator
-
-
- 
+from keras import backend as K
+import tensorflow as tf
 
 
 def unet_xception(img_shape):
@@ -115,6 +111,21 @@ def unet_xception(img_shape):
     return model
 
 
+def SubpixelConv2D(input_shape, block, scale=2):
+    # upsample using depth_to_space
+    def subpixel_shape(input_shape):
+        dims = [input_shape[0],
+                input_shape[1] * scale,
+                input_shape[2] * scale,
+                int(input_shape[3] / (scale ** 2))]
+        output_shape = tuple(dims)
+        return output_shape
+
+    def subpixel(x):
+        return tf.depth_to_space(x, scale)
+
+    return Lambda(subpixel, output_shape=subpixel_shape, name='subpixel' + str(block))
+
 def conv_bn_relu(inputs, nb_outputs, kernel, strides=(1,1), padding='same', activation='relu'):
     """Order of Common Layers"""
     x = Conv2D(nb_outputs, kernel_size=kernel, strides=strides, padding=padding)(inputs)
@@ -154,44 +165,29 @@ def unet(img_shape, num_filts):
 
     conv5 = conv_bn_relu(pool4, 64*num_filts, 1)
     conv5 = conv_bn_relu(conv5, 64*num_filts, 3)
-    conv5 = conv_bn_relu(conv5, 64*num_filts, 3)
-    conv5 = conv_bn_relu(conv5, 64*num_filts, 3)
     conv5 = conv_bn_relu(conv5, 64*num_filts, 1)
     
-    up4 = conv_bn_relu(
-        UpSampling2D(size=(2, 2))(conv5),
-        16*num_filts, 
-        1
-    )
+
+    up4 = SubpixelConv2D(K.shape(conv5), block=4, scale=2)(conv5)
+    up4 = conv_bn_relu(up4, 16*num_filts, 1)
     merge4 = Concatenate()([conv4, up4])
     convup4 = conv_bn_relu(merge4, 16*num_filts, 3)
     convup4 = conv_bn_relu(convup4, 16*num_filts, 1)
 
-    up3 = conv_bn_relu(
-        UpSampling2D(size=(2, 2))(convup4),
-        16*num_filts, 
-        1
-    )
+    up3 = SubpixelConv2D(K.shape(convup4), block=3, scale=2)(convup4)
+    up3 = conv_bn_relu(up3,16*num_filts, 1)
     merge3 = Concatenate()([conv3, up3])
     convup3 = conv_bn_relu(merge3, 16*num_filts, 3)
     convup3 = conv_bn_relu(convup3, 16*num_filts, 1)
 
-
-
-    up2 = conv_bn_relu(
-        UpSampling2D(size=(2, 2))(convup3),
-        8*num_filts, 
-        1
-    )
+    up2 = SubpixelConv2D(K.shape(convup3), block=2, scale=2)(convup3)
+    up2 = conv_bn_relu(up2, 8*num_filts, 1)
     merge2 = Concatenate()([conv2, up2])
     convup2 = conv_bn_relu(merge2, 8*num_filts, 3)
     convup2 = conv_bn_relu(convup2, 8*num_filts, 1)
 
-    up1 = conv_bn_relu(
-        UpSampling2D(size=(2, 2))(convup2),
-        4*num_filts, 
-        1
-    )
+    up1 = SubpixelConv2D(K.shape(convup2), block=1, scale=2)(convup2)
+    up1 = conv_bn_relu(up1, 4*num_filts,  1)
     merge1 = Concatenate()([conv1, up1])
     convup1 = conv_bn_relu(merge1, 4*num_filts, 3)
     convup1 = conv_bn_relu(convup1, 4*num_filts, 1)
