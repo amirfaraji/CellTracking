@@ -7,7 +7,7 @@ from pydensecrf.utils import compute_unary, create_pairwise_bilateral, \
     create_pairwise_gaussian, unary_from_labels
 
 
-def crf_seg(img, mask, gt_prob=0.9):
+def crf_seg(img, mask, gt_prob=0.9, infer=10):
     labels = mask.flatten() 
 
     M = 2  # number of labels
@@ -27,7 +27,7 @@ def crf_seg(img, mask, gt_prob=0.9):
                         kernel=dcrf.DIAG_KERNEL,
                         normalization=dcrf.NORMALIZE_SYMMETRIC)
 
-    Q = d.inference(10)
+    Q = d.inference(infer)
 
     res = np.argmax(Q, axis=0).reshape((img.shape[0], img.shape[1]))
     return res
