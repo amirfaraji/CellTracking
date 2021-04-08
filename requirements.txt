@@ -1,6 +1,6 @@
 Cython==0.29.15
 distributed==1.25.3
-Django==3.0.3
+Django==3.0.14
 docutils==0.15.2
 Flask==1.1.1
 gunicorn==20.0.4
