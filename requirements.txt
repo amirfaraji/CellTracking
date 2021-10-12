@@ -17,7 +17,7 @@ mesh-tensorflow==0.1.9
 nltk==3.4.5
 numba==0.47.0
 numpy==1.17.5
-opencv-contrib-python==4.1.2.30
+opencv-contrib-python==4.2.0.32
 opencv-python==4.1.2.30
 openpyxl==2.5.9
 packaging==20.1
