@@ -1,5 +1,5 @@
 Cython==0.29.15
-distributed==1.25.3
+distributed==2021.10.0
 Django==3.0.3
 docutils==0.15.2
 Flask==1.1.1
